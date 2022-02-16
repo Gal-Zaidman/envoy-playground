@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy
+  namespace: envoy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: envoy
+  template:
+    metadata:
+      labels:
+        app: envoy
+    spec:
+      nodeSelector:
+          loadbalancer-ready: "true"
+      containers:
+      - name: envoy
+        env: #This is for docker runtime not sure if needed for other CR
+        - name: ENVOY_UID
+          value: "0"
+        image: envoyproxy/envoy:v1.21.0
+        resources: {}
+        ports:
+        - name: https
+          containerPort: 8443
+        - name: admin
+          containerPort: 8090
+        volumeMounts:
+        - name: config
+          mountPath: /etc/envoy
+        - name: certs
+          mountPath: /etc/ssl/envoy
+        readinessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /healthz
+            httpHeaders:
+            - name: x-envoy-livenessprobe
+              value: healthz
+            port: 8443
+          initialDelaySeconds: 3
+        livenessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /healthz
+            httpHeaders:
+            - name: x-envoy-livenessprobe
+              value: healthz
+            port: 8443
+          initialDelaySeconds: 10
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Equal"
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        effect: "NoSchedule"
+      volumes:
+      - name: config
+        configMap:
+          name: front-envoy
+      - name: certs
+        secret:
+          secretName: envoy-certs

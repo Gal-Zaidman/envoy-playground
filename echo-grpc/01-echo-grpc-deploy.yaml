@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: echo-grpc
+  name: echo-grpc
+  namespace: envoy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: echo-grpc
+  template:
+    metadata:
+      labels:
+        app: echo-grpc
+    spec:
+      containers:
+      - name: echo-grpc
+        image: gzaidman/echo-grpc
+        imagePullPolicy: Always
+        resources: {}
+        env:
+        - name: "PORT"
+          value: "8081"
+        ports:
+        - containerPort: 8081
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:8081"]
+          initialDelaySeconds: 1
+        livenessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:8081"]
+          initialDelaySeconds: 1
+      - name: envoy
+        image: envoyproxy/envoy:v1.21.0
+        resources: {}
+        ports:
+        - name: https
+          containerPort: 8786
+        - name: admin
+          containerPort: 8090
+        volumeMounts:
+        - name: config
+          mountPath: /etc/envoy
+      volumes:
+        - name: config
+          configMap:
+            name: envoy-echo-grpc

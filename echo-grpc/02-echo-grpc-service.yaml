@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-grpc
+  namespace: envoy
+  labels:
+    prometheus-scrape: "true"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: echo-grpc
+  ports:
+  - name: envoy
+    protocol: TCP
+    port: 8090 # the port envoy presents metrics on
+  - name: http2-echo-grpc
+    protocol: TCP
+    port: 8786 # the envoy port

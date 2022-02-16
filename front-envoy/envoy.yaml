@@ -1,0 +1,166 @@
+admin:
+  access_log_path: "/tmp/admin_access.log"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8090
+static_resources:
+  listeners:
+  - address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8443
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          access_log:
+          - name: envoy.access_loggers.stdout
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+          codec_type: AUTO
+          generate_request_id: true
+          tracing: # configuration for jaeger tracer
+            provider:
+              name: envoy.tracers.dynamic_ot
+              typed_config:
+                "@type": type.googleapis.com/envoy.config.trace.v3.DynamicOtConfig
+                library: /usr/local/lib/libjaegertracing_plugin.so # This is a file we will need to pass to the image
+                config:
+                  service_name: front-proxy
+                  sampler:
+                    type: const
+                    param: 1
+                  reporter:
+                    localAgentHostPort: jaeger:6831
+                  headers:
+                    jaegerDebugHeader: jaeger-debug-id
+                    jaegerBaggageHeader: jaeger-baggage
+                    traceBaggageHeaderPrefix: frontctx-
+                  baggage_restrictions:
+                    denyBaggageOnInitializationFailure: false
+                    hostPort: ""
+          stat_prefix: ingress_https
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: backend
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/api.Echo/"
+                route:
+                  cluster: echo-grpc
+              - match:
+                  prefix: "/api.Reverse/"
+                route:
+                  cluster: reverse-grpc
+          http_filters:
+          - name: envoy.filters.http.health_check
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.health_check.v3.HealthCheck
+              pass_through_mode: false
+              headers:
+              - name: ":path"
+                exact_match: "/healthz"
+              - name: "x-envoy-livenessprobe"
+                exact_match: "healthz"
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          common_tls_context:
+            tls_certificates:
+            - certificate_chain:
+                filename: "/etc/ssl/envoy/tls.crt"
+              private_key:
+                filename: "/etc/ssl/envoy/tls.key"
+  clusters:
+
+  - name: echo-grpc
+    type: STRICT_DNS
+    connect_timeout: 0.5s # The timeout for new network connections to hosts in the cluster
+    lb_policy: ROUND_ROBIN # See docs for all types https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/cluster.proto#envoy-v3-api-enum-config-cluster-v3-cluster-lbpolicy
+    load_assignment:
+      cluster_name: echo-grpc
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: echo-grpc.envoy.svc.cluster.local
+                port_value: 8081
+    health_checks: # Optional active health checking configuration for the cluster
+      timeout: 1s
+      interval: 30s
+      unhealthy_threshold: 2
+      healthy_threshold: 2
+      grpc_health_check: {}
+    # Refer to configuration docs
+    # https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/circuit_breaker.proto#envoy-v3-api-msg-config-cluster-v3-circuitbreakers
+    circuit_breakers:
+      thresholds:
+      - priority: "DEFAULT"
+        max_connections: 1024 # The maximum number of connections that Envoy will establish to all hosts in an upstream cluster.
+        max_pending_requests: 1024 # The maximum number of requests that will be queued while waiting for a ready connection pool connection.
+        max_requests: 1024 # The maximum number of parallel requests that Envoy will make to the upstream cluster.
+        max_retries: 3     # The maximum number of parallel retries that Envoy will allow to the upstream cluster.
+        retry_budget:      # Specifies a limit on concurrent retries in relation to the number of active requests.
+          budget_percent:
+            value: 20.0
+          min_retry_concurrency: 3
+        track_remaining: true # stats will be published that expose the number of resources remaining until the circuit breakers open.
+    common_lb_config:
+      ignore_new_hosts_until_first_hc: true # exclude new hosts when computing load balancing weights until they have been health checked for the first time.
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options:
+            max_concurrent_streams: 100
+  - name: reverse-grpc
+    type: STRICT_DNS
+    connect_timeout: 0.5s # The timeout for new network connections to hosts in the cluster
+    lb_policy: ROUND_ROBIN # See docs for all types https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/cluster.proto#envoy-v3-api-enum-config-cluster-v3-cluster-lbpolicy
+    load_assignment:
+      cluster_name: reverse-grpc
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: reverse-grpc.envoy.svc.cluster.local
+                port_value: 8081
+    health_checks: # Optional active health checking configuration for the cluster
+      timeout: 1s
+      interval: 30s
+      unhealthy_threshold: 2
+      healthy_threshold: 2
+      grpc_health_check: {}
+    # Refer to configuration docs
+    # https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/circuit_breaker.proto#envoy-v3-api-msg-config-cluster-v3-circuitbreakers
+    circuit_breakers:
+      thresholds:
+      - priority: "DEFAULT"
+        max_connections: 1024 # The maximum number of connections that Envoy will establish to all hosts in an upstream cluster.
+        max_pending_requests: 1024 # The maximum number of requests that will be queued while waiting for a ready connection pool connection.
+        max_requests: 1024 # The maximum number of parallel requests that Envoy will make to the upstream cluster.
+        max_retries: 3 # The maximum number of parallel retries that Envoy will allow to the upstream cluster.
+        retry_budget: # Specifies a limit on concurrent retries in relation to the number of active requests.
+          budget_percent:
+            value: 20.0
+          min_retry_concurrency: 3
+        track_remaining: true # stats will be published that expose the number of resources remaining until the circuit breakers open.
+    common_lb_config:
+      ignore_new_hosts_until_first_hc: true # exclude new hosts when computing load balancing weights until they have been health checked for the first time.
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options:
+            max_concurrent_streams: 100

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: reverse-grpc
+  namespace: envoy
+  labels:
+    prometheus-scrape: "true"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: reverse-grpc
+  ports:
+  - name: envoy
+    protocol: TCP
+    port: 8090 # the port envoy presents metrics on
+  - name: http2-reverse-grpc
+    protocol: TCP
+    port: 8786 # the envoy port

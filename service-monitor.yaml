@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: envoy-monitor
+  namespace: monitoring
+  labels:
+    serviceMonitorSelector: envoy
+spec:
+  namespaceSelector:
+    matchNames:
+    - envoy
+  selector:
+    matchLabels:
+      prometheus-scrape: "true"
+  endpoints:
+  - interval: 30s
+    targetPort: 8090
+    path: /stats/prometheus
+
