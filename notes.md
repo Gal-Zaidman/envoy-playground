@@ -64,6 +64,20 @@ The HTTP connection manager that handles the request must have the tracing objec
 - By an internal service via the x-envoy-force-trace header.
 - Randomly sampled via the random_sampling runtime setting.
 
+# Statistics
+
+Envoy emits a large number of statistics depending on how it is configured. In general there are three categories of statistics:
+
+- Downstream statistics related to incoming connections/requests.
+- Upstream statistics related to outgoing connections/requests.
+- Server statistics describing how the Envoy server instance is performing.
+
+The statistics are formatted like `envoy.<category>(.<subcategory>).metric` and some of the categories that we are interested in are:
+
+- Cluster: a group of logically similar upstream hosts that Envoy connects to.
+- Listener: a named network location, like a port or unix socket, that can be connected to by downstream clients.
+- TCP: metrics such as connections, throughput, etc.
+- HTTP: metrics about HTTP and HTTP/2 connections and requests.
 
 # Refrences:
 

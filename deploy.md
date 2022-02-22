@@ -100,6 +100,26 @@ kubectl apply -f manifests/
 
 ** Note that the kube-prometheus project installs a lot of components in the K8S cluster, most of them are probably not required for our use case, but it is the easiest way to get a full functioning prometheus and grafana solution
 
+## Install Jaeger Operator
+
+This will install the Jaeger Operator to manage Jaeger instances,
+We will also install `cert-manager` since it is a dependency of the Jaeger Operator, I choose to use the operator as is and install the all in one image since it is the most easy way to get started.
+For production it would be wise to dive deeper into the operator and different modes of deployments.
+
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.7.1/cert-manager.yaml
+
+kubectl create namespace observability
+kubectl create -f https://github.com/jaegertracing/jaeger-operator/releases/download/v1.31.0/jaeger-operator.yaml -n observability
+```
+
+Create the Jaeger CRD in our namespace:
+
+```bash
+kubectl apply -f jaeger/jaeger-crd.yaml
+```
+
+
 # Process
 
 1. Create the config file for the envoy sidecar containers
@@ -152,7 +172,6 @@ kubectl create secret tls envoy-certs --key privkey.pem --cert cert.pem --dry-ru
 ```
 
 4.  Create the front-end envoy (GW) config file
-    kubectl -n envoy create configmap envoy-echo-grpc --from-file=echo-grpc/envoy.yaml
 
     `kubectl -n envoy create configmap front-envoy --from-file=front-envoy/envoy.yaml`
     
@@ -162,7 +181,7 @@ kubectl create secret tls envoy-certs --key privkey.pem --cert cert.pem --dry-ru
 
 6. Configure the prometheus operator to scrap for envoy metrics
 
-    `kubectl apply -f service-monitor.yaml`
+    `kubectl apply -f prometheus/service-monitor.yaml`
 
 7. Edit the prometheus CRD to include the new sevice monitor
 
@@ -202,6 +221,19 @@ kubectl -n monitoring create -f tmp.yaml
 rm tmp.yaml
 ```
 
+# Useful commands:
+
+1. Recreate the configmaps and redeploy pods:
+   
+   ```
+   kubectl -n envoy create configmap envoy-reverse-grpc --from-file=reverse-grpc/envoy.yaml --dry-run -oyaml|kubectl apply -f-
+
+   kubectl -n envoy create configmap envoy-echo-grpc --from-file=echo-grpc/envoy.yaml --dry-run -oyaml|kubectl apply -f-
+
+   kubectl -n envoy create configmap front-envoy --from-file=front-envoy/envoy.yaml --dry-run -oyaml|kubectl apply -f-
+
+   kubectl -n envoy rollout restart deploy reverse-grpc echo-grpc envoy
+   ```
 # Refrences
 
  https://www.loginradius.com/blog/async/service-mesh-with-envoy/
