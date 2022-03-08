@@ -107,16 +107,15 @@ static_resources:
                   prefix: "/api.Reverse/"
                 route:
                   cluster: reverse-grpc
+              - match:
+                  prefix: "/grpc.health.v1.Health/Check"
+                route:
+                  cluster: reverse-grpc
           http_filters:
-          - name: envoy.filters.http.health_check
+          - name: envoy.filters.http.grpc_stats
             typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.health_check.v3.HealthCheck
-              pass_through_mode: false
-              headers:
-              - name: ":path"
-                exact_match: "/healthz"
-              - name: "x-envoy-livenessprobe"
-                exact_match: "healthz"
+              "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_stats.v3.FilterConfig
+              stats_for_all_methods: true
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -136,6 +135,9 @@ static_resources:
                 address: "127.0.0.1"
                 port_value: 8081 # The reverse-grpc port
     health_checks:
+      # This is for debuging, please remove on production
+      always_log_health_check_failures: true
+      event_log_path: "/tmp/health_checks_echo-grpc.log"
       timeout: 1s
       interval: 10s
       unhealthy_threshold: 2

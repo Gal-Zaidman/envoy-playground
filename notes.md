@@ -84,3 +84,5 @@ The statistics are formatted like `envoy.<category>(.<subcategory>).metric` and 
 - Hoot: Observing Envoy - Monitoring, Performance, and Troubleshooting:
 Great talk that shows things like monitoring with prometheus
 https://www.youtube.com/watch?v=ZthWg-_Bg_c
+
+- https://medium.com/swlh/scaling-microservices-with-grpc-and-envoy-proxy-part-2-148f589b2a83

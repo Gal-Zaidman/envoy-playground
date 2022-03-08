@@ -150,6 +150,9 @@ static_resources:
                 address: echo-grpc.envoy.svc.cluster.local
                 port_value: 8786
     health_checks: # Optional active health checking configuration for the cluster
+      # This is for debuging, please remove on production
+      always_log_health_check_failures: true
+      event_log_path: "/tmp/health_checks_echo-grpc.log"
       timeout: 1s
       interval: 30s
       unhealthy_threshold: 2
@@ -191,6 +194,9 @@ static_resources:
                 address: reverse-grpc.envoy.svc.cluster.local
                 port_value: 8786
     health_checks: # Optional active health checking configuration for the cluster
+      # This is for debuging, please remove on production
+      always_log_health_check_failures: true
+      event_log_path: "/tmp/health_checks_reverse-grpc.log"
       timeout: 1s
       interval: 30s
       unhealthy_threshold: 2
